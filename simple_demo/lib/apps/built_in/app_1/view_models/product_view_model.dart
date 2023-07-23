@@ -16,7 +16,7 @@ class ProductViewModel extends InheritedWidget {
 
   static ProductViewModel of(BuildContext context) {
     final ProductViewModel? result = maybeOf(context);
-    assert(result != null, 'No FrogColor found in context');
+    assert(result != null, 'No ProductViewModel found in context');
     return result!;
   }
 

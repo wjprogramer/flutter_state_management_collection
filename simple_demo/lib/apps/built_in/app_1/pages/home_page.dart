@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:simple_demo/apps/built_in/app_1/pages/inherited_widget_page_1.dart';
+import 'package:simple_demo/apps/built_in/app_1/pages/product_inspect_page.dart';
+import 'package:simple_demo/apps/built_in/app_1/pages/product_page.dart';
 import 'package:simple_demo/share/core/utilities/utilities.dart';
 
 class HomePage extends StatelessWidget {
@@ -13,7 +14,8 @@ class HomePage extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          UI.navItem(context, 'InheritedWidget Usage', () => InheritedWidgetPage1()),
+          UI.navItem(context, 'InheritedWidget Usage', () => ProductPage()),
+          UI.navItem(context, 'InheritedWidget Inspect Usage', () => ProductInspectPage()),
         ],
       ),
     );
