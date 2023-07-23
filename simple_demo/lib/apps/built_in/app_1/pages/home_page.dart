@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:simple_demo/apps/built_in/app_1/pages/inherited_widget_page_1.dart';
+import 'package:simple_demo/share/core/utilities/utilities.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -11,6 +13,7 @@ class HomePage extends StatelessWidget {
       ),
       body: ListView(
         children: [
+          UI.navItem(context, 'InheritedWidget Usage', () => InheritedWidgetPage1()),
         ],
       ),
     );

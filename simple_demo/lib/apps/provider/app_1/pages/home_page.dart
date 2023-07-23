@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:simple_demo/apps/provider/app_1/pages/product_from_provider_page.dart';
-import 'package:simple_demo/share/data/models/models.dart';
-import 'package:flutter_common_package/flutter_common_package.dart';
+import 'package:simple_demo/share/core/utilities/utilities.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -15,24 +13,12 @@ class HomePage extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          _item(context, 'Product (from provider)', () => ProductFromProviderPage()),
+          UI.navItem(context, 'Product (from provider)', () => ProductFromProviderPage()),
         ],
       ),
     );
   }
 
-  Widget _item(
-    BuildContext context,
-    String text,
-    Widget Function() pageBuilder,
-  ) {
-    return ListTile(
-      title: Text(text),
-      onTap: () {
-        push(context, pageBuilder());
-      },
-    );
-  }
 }
 
 
