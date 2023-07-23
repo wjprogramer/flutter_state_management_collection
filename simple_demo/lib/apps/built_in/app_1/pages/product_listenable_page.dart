@@ -1,54 +1,50 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_common_package/flutter_common_package.dart';
+import 'package:simple_demo/apps/built_in/app_1/others/data_listen.dart';
 import 'package:simple_demo/apps/built_in/app_1/view_models/view_models.dart';
-import 'package:simple_demo/share/constants.dart';
+import 'package:simple_demo/share/core/utilities/utilities.dart';
 import 'package:simple_demo/share/core/utils/utils.dart';
 import 'package:simple_demo/share/data/models/models.dart';
+import 'package:simple_demo/share/views/product_view.dart';
 
-class ProductInspectPage extends StatefulWidget {
-  const ProductInspectPage({Key? key}) : super(key: key);
+class ProductListenablePage extends StatefulWidget {
+  const ProductListenablePage({Key? key}) : super(key: key);
 
   @override
-  State<ProductInspectPage> createState() => _ProductInspectPageState();
+  State<ProductListenablePage> createState() => _ProductListenablePageState();
 }
 
-class _ProductInspectPageState extends State<ProductInspectPage> {
-  Product _product = Product(name: 'Product 1', price: 47.5);
-
-  void update() {
-    setState(() { });
-  }
+class _ProductListenablePageState extends State<ProductListenablePage> {
+  final _model = ProductListenableViewModel(
+    product: Product(name: 'Product 1', price: 47.5),
+  );
 
   @override
   Widget build(BuildContext context) {
-    return ProductViewModel(
-      product: _product,
+    return DataListen<ProductListenableViewModel>(
+      listenable: _model,
       child: Builder(
         builder: (context) {
           return Scaffold(
             appBar: AppBar(
-              title: Text(
-                _product.name,
-              ),
+              title: Text(DataListen.of<ProductListenableViewModel>(context)?.product.name ?? ''),
             ),
             body: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
               children: [
-                _NameLabel(value: _product.name,),
-                _PriceLabel(),
+                16.height,
+                ...UI.hpList(
+                  children: [
+                    _NameLabel(value: DataListen.of<ProductListenableViewModel>(context)?.product.name ?? ''),
+                    _PriceLabel(),
+                  ],
+                ),
               ],
             ),
             floatingActionButton: FloatingActionButton(
               onPressed: () {
-                final v = Random().nextDouble() * 1000;
-
-                setState(() {
-                  _product = _product.copyWith(
-                    price: v,
-                    name: 'Product ${v.toInt()}'
-                  );
-                });
+                DataListen.of<ProductListenableViewModel>(context)?.updatePrice();
               },
               child: Icon(Icons.edit),
             ),
@@ -75,8 +71,9 @@ class _PriceLabelState extends State<_PriceLabel> {
 
   @override
   Widget build(BuildContext context) {
+    info('[price/build] called');
     return Text(
-      'Price: ${ProductViewModel.of(context).product.price.toStringAsFixed(2)}',
+      'Price: ${DataListen.of<ProductListenableViewModel>(context)?.product.price.toStringAsFixed(2)}',
     );
   }
 }
@@ -97,18 +94,12 @@ class _NameLabelState extends State<_NameLabel> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 此元件沒有使用到 InheritedWidget，因此 InheritedWidget 更新的時候，method 不會被呼叫
     info('[name/didChangeDependencies] called');
   }
 
   @override
   Widget build(BuildContext context) {
+    info('[name/build] called');
     return Text('Name: ${widget.value}');
   }
 }
-
-
-
-
-
-

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InheritedWidget</title>
+
+  <link href="libs/highlight.js_9.12.0/default.min.css" rel="stylesheet" />
+  <script src="libs/highlight.js_9.12.0/highlight.min.js"></script>
+</head>
+<body>
+  
+<h1>InheritedWidget</h1>
+
+<p>
+  筆記當下版本: Flutter 3.7.11
+</p>
+
+<h2>研究原理、原始碼分析</h2>
+
+<p>省略不重要的程式碼</p>
+
+<hr>
+
+<h3>Q: 子 widget 如何取得從當前 widget 到根 widget 路徑中的所有 InheritedWidget 實體</h3>
+
+<p>Flutter 建立畫面流程</p>
+
+<ol>
+  <li>建立 Widget</li>
+  <li>呼叫 widget 的 createElement()，建立 Element</li>
+  <li>呼叫 Element 的 mount()</li>
+  <li>Element 的 mount() 中，會遍歷子 widget，建立對應 Element，並呼叫其 mount()，完成 ElementTree</li>
+</ol>
+
+<hr>
+
+<span class="label class-label">C</span> <code>Element</code>
+
+<pre><code class="dart">PersistentHashMap&lt;Type, InheritedElement&gt;? _inheritedWidgets;
+
+@mustCallSuper
+void mount(Element? parent, Object? newSlot) {
+  // ...
+  _updateInheritance();
+  // ...
+}
+
+void _updateInheritance() {
+  // POINT: 如果沒有覆寫 _updateInheritance，一般情況下的 Element 會和 parent 共用同一個 _inheritedWidgets
+  _inheritedWidgets = _parent?._inheritedWidgets;
+}
+</code></pre>
+
+<p>_updateInheritance 只有引用並覆值，並沒有建立</p>
+
+<p>Element 體系中，有覆寫 <code>_updateInheritance</code> 和建立 <code>_inheritedWidgets</code> 的只有 <code>InheritedElement</code></p>
+
+<span class="label class-label">C</span> <code>InheritedWidget</code>
+
+<pre><code class="dart">@override
+void _updateInheritance() {
+  final PersistentHashMap&lt;Type, InheritedElement&gt; incomingWidgets =
+      _parent?._inheritedWidgets ?? const PersistentHashMap&lt;Type, InheritedElement&gt;.empty();
+  _inheritedWidgets = incomingWidgets.put(widget.runtimeType, this);
+}
+</code></pre>
+
+每個 InheritedElement 會將本身也加入到 <code>_inheritedWidgets</code>
+
+<p>
+  <span class="conclusion">
+    結論: 所有 InheritedElement 的子 Element 共享同一個 <code>PersistentHashMap&lt;Type, InheritedElement&gt;?</code> 物件，並且每一個子 Element 都有引用
+  </span>
+</p>
+
+<hr>
+
+<p>子 widget 取得 InheritedWidget 的例子:</p>
+
+<pre><code class="dart">class DataInheritedWidget&lt;T&gt; extends InheritedWidget {
+  const DataInheritedWidget({
+    super.key,
+    required super.child,
+    required this.data,
+  });
+
+  final T data;
+
+  static T? of&lt;T extends Listenable&gt;(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType&lt;DataInheritedWidget&lt;T&gt;()
+        ?.listenable;
+  }
+
+  static T? ofData&lt;T extends Listenable&gt;(BuildContext context) {
+    return (context
+        .getElementForInheritedWidgetOfExactType&lt;DataInheritedWidget&lt;T&gt;()
+        ?.widget as DataInheritedWidget&lt;T&gt;?)
+        ?.listenable;
+  }
+
+}
+</code></pre>
+
+<p>
+  <code>.of</code> 和 <code>.ofData</code> 都是給子 Widget 呼叫的；因此 <code>context</code> 是子 Widget 實體中的 context，而 widget 中的 BuildContext 就是 <code>Element</code>
+</p>
+
+<p>
+  <span class="label class-label">C</span> <code>Element</code> 中，這兩個方法的原始碼
+</p>
+
+<pre><code>@override
+T? dependOnInheritedWidgetOfExactType&lt;T extends InheritedWidget&gt;({Object? aspect}) {
+  assert(_debugCheckStateIsActiveForAncestorLookup());
+  final InheritedElement? ancestor = _inheritedWidgets == null ? null : _inheritedWidgets![T];
+  if (ancestor != null) {
+    return dependOnInheritedElement(ancestor, aspect: aspect) as T;
+  }
+  _hadUnsatisfiedDependencies = true;
+  return null;
+}
+
+@override
+InheritedElement? getElementForInheritedWidgetOfExactType&lt;T extends InheritedWidget&gt;() {
+  assert(_debugCheckStateIsActiveForAncestorLookup());
+  final InheritedElement? ancestor = _inheritedWidgets == null ? null : _inheritedWidgets![T];
+  return ancestor;
+}</code></pre>
+
+<code>_inheritedWidgets</code> 就是前面分析過的
+
+<hr>
+
+<h3>Q: InheritedWidget 如何做到局部更新</h3>
+
+<ul>
+  <li><code>getElementForInheritedWidgetOfExactType</code>: 只為了獲得 InheritedWidget 資料、不監聽</li>
+  <li><code>dependOnInheritedWidgetOfExactType</code>: 獲得 InheritedWidget 資料並相依監聽，與前者差異多了一行 <code>dependOnInheritedElement</code></li>
+</ul>
+
+<span class="label class-label">C</span> <code>Element</code>
+
+<pre><code>@override
+InheritedWidget dependOnInheritedElement(InheritedElement ancestor, { Object? aspect }) {
+  assert(ancestor != null);
+  // 如果為 null 則初始化
+  _dependencies ??= HashSet&lt;InheritedElement&gt;();
+  // 儲存相依對象
+  _dependencies!.add(ancestor);
+  // 更新 InheritedElement 的被相依對象集合
+  ancestor.updateDependencies(this, aspect);
+  return ancestor.widget as InheritedWidget;
+}</code></pre>
+
+<p>呼叫 <code>dependOnInheritedWidgetOfExactType</code> 會找到對應的 <code>InheritedElement</code>，將其加入自己的相依集合，並將自己加入到 <code>InheritedElement</code> 被相依集合（雙向綁定，父子可以互查），因此當 <code>InheritedElement</code>　要更新的時候可以定位到所有子 Widget</p>
+
+
+
+
+
+<hr>
+
+<ul>
+  <li><span class="label class-label">C</span> <code>InheritedWidget</code></li>
+  <ul>
+    <li><span class="label method-label">M</span> <code>InheritedElement createElement() => InheritedElement(this);</code></li>
+    <li><span class="label method-label">M</span> <code>bool updateShouldNotify(covariant InheritedWidget oldWidget)</code></li>
+  </ul>
+</ul>
+
+<hr>
+
+<h2>參考</h2>
+
+<ul>
+  <li><a href="https://juejin.cn/post/7077559190813671460#heading-4">1</a></li>
+</ul>
+
+<style>
+  code {
+    color: crimson;
+    background-color: rgba(222,222,222,0.3);
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .conclusion {
+    background-color: #fffb8a;
+    font-weight: bold;
+  }
+
+  .label {
+    display: inline-flex; /* or flex */
+    align-items: center; 
+    justify-content: center;
+    border-radius: 50%;
+    width: 15px;
+    height: 15px;
+    align-content: center;
+    font-size: 8px;
+    text-align: center;
+    -moz-border-radius: 7.5px;
+    -webkit-border-radius: 7.5px;
+    border-radius: 7.5px;
+  }
+
+  .class-label {
+    background-color: #2b7d9f;
+    color: white;
+  }
+
+  .method-label {
+    background-color: #ad6c79;
+    color: white;
+  }
+</style>
+
+<script>
+  hljs.initHighlightingOnLoad();
+</script>
+
+</body>
+</html>

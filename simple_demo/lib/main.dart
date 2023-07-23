@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:simple_demo/apps/bloc/app_1/bloc_app_1.dart';
 import 'package:simple_demo/apps/built_in/app_1/built_in_app_1.dart';
 import 'package:simple_demo/apps/provider/app_1/provider_app_1.dart';
+import 'package:simple_demo/share/global.dart';
 import 'package:simple_demo/share/presentation/theme.dart';
 
 void main() {
@@ -15,6 +16,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Flutter Demo',
       theme: getDefaultTheme(),
       home: _HomePage(),
