@@ -156,6 +156,75 @@ InheritedWidget dependOnInheritedElement(InheritedElement ancestor, { Object? as
 
 <p>呼叫 <code>dependOnInheritedWidgetOfExactType</code> 會找到對應的 <code>InheritedElement</code>，將其加入自己的相依集合，並將自己加入到 <code>InheritedElement</code> 被相依集合（雙向綁定，父子可以互查），因此當 <code>InheritedElement</code>　要更新的時候可以定位到所有子 Widget</p>
 
+<hr>
+
+<p>先理解 widget 的更新機制</p>
+
+<pre><code class="dart">@optionalTypeArgs
+abstract class State&lt;T extends StatefulWidget&gt; with Diagnosticable {
+  @protected
+  void setState(VoidCallback fn) {
+    // ...
+    _element!.markNeedsBuild(); // Step 1
+  }
+}
+
+abstract class Element extends DiagnosticableTree implements BuildContext {
+  void markNeedsBuild() {
+    // ...
+    _dirty = true; // Step 2
+    owner!.scheduleBuildFor(this); // Step 3
+  }
+}
+
+class BuildOwner {
+  void scheduleBuildFor(Element element) {
+    // ...
+    _dirtyElements.add(element); // Step 4. 將需要更新的 Element 新增至 _dirtyElements
+    // ...
+  }
+}
+
+mixin WidgetsBinding on BindingBase /* 省略其他 Binding */ {
+  // Step 5. 當下一幀到來時，「系統」 會呼叫 drawFrame
+  @override
+  void drawFrame() {
+    // ...
+    buildOwner!.buildScope(renderViewElement!); // Step 6. 
+    // ...
+  }
+}
+
+class BuildOwner {
+  // Step 7. 省略很多程式碼
+  @pragma('vm:notify-debugger-on-exception')
+  void buildScope(Element context, [ VoidCallback? callback ]) {
+    int dirtyCount = _dirtyElements.length;
+    int index = 0;
+    while (index &lt; dirtyCount) {
+      final Element element = _dirtyElements[index];
+      element.rebuild(); // Step 8. 對 _dirtyElements 其中每一個元素 rebuild
+    }
+  }
+}
+
+abstract class Element extends DiagnosticableTree implements BuildContext {
+  // Step 9
+  @pragma('vm:prefer-inline')
+  void rebuild({bool force = false}) {
+    // ...
+    performRebuild();
+    // ...
+  }
+
+  @protected
+  @mustCallSuper
+  void performRebuild() {
+    _dirty = false;
+  }
+}
+</code></pre>
+
 
 
 
