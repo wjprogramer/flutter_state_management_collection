@@ -185,6 +185,8 @@ class BuildOwner {
   }
 }
 
+// ----------------------------------------------------------
+
 mixin WidgetsBinding on BindingBase /* 省略其他 Binding */ {
   // Step 5. 當下一幀到來時，「系統」 會呼叫 drawFrame
   @override
@@ -209,7 +211,7 @@ class BuildOwner {
 }
 
 abstract class Element extends DiagnosticableTree implements BuildContext {
-  // Step 9
+  // Step 9. 整個 Flutter 沒有任何子類別覆寫
   @pragma('vm:prefer-inline')
   void rebuild({bool force = false}) {
     // ...
@@ -217,13 +219,140 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
     // ...
   }
 
+  // 不同 Element，實作會有落差
   @protected
   @mustCallSuper
   void performRebuild() {
     _dirty = false;
   }
 }
+
+// Step 10
+// InheritedWidget 對應 InheritedElement
+class InheritedElement extends ProxyElement {
+}
+
+// Step 11
+abstract class ProxyElement extends ComponentElement {
+}
+
+// Step 12
+abstract class ComponentElement extends Element {
+  // InheritedElement -> ProxyElement -> ComponentElement 的繼承鏈中
+  // 只有 ComponentElement 覆寫 performRebuild
+  // 只列出關鍵程式碼
+  @override
+  @pragma('vm:notify-debugger-on-exception')
+  void performRebuild() {
+    Widget? built;
+    try {
+      built = build(); // 建立 Widget
+    } catch (e) {
+      // ...
+    } finally {
+      super.performRebuild(); // clears the "dirty" flag
+    }
+
+    try {
+      // 根據新建立的 Widget 更新 Element? _child
+      _child = updateChild(_child, built, slot);
+    } catch (e) {
+      _child = updateChild(null, built, slot);
+    }
+
+  }
+}
+
+// Step 13
+abstract class ProxyElement extends ComponentElement {
+  // 子類別 InheritedElement 沒有覆寫 build
+  @override
+  Widget build() => (widget as ProxyWidget).child; // 如果 child widget 實體不變，回傳對象永遠相同
+}
+
+// Step 14 (Step 12 中的 updateChild)
+// updateChild 在 InheritedElement 的繼承鏈中都沒覆寫
+abstract class Element extends DiagnosticableTree implements BuildContext {
+  @protected
+  @pragma('vm:prefer-inline')
+  Element? updateChild(Element? child, Widget? newWidget, Object? newSlot) {
+    if (newWidget == null) {
+      if (child != null) {
+        deactivateChild(child);
+      }
+      return null;
+    }
+
+    final Element newChild;
+    if (child != null) {
+      // 在更新時，child 不為空，所以會來這 
+      bool hasSameSuperclass = true;
+      // ...
+      if (hasSameSuperclass && child.widget == newWidget) {
+        // 14-1 注意此處，如果新建的子 widget 和之前持有的子 Element 的 widget 相同就不更新
+        if (child.slot != newSlot) {
+          updateSlotForChild(child, newSlot);
+        }
+        newChild = child;
+      } else if (hasSameSuperclass && Widget.canUpdate(child.widget, newWidget)) {
+        // 14-2. 如果兩個 widget 的 runtimeType 和 key 不同，則進行更新
+        if (child.slot != newSlot) {
+          updateSlotForChild(child, newSlot);
+        }
+        final bool isTimelineTracked = !kReleaseMode && _isProfileBuildsEnabledFor(newWidget);
+        if (isTimelineTracked) {
+          Map&lt;String, String&gt;? debugTimelineArguments;
+          assert(() {
+            if (kDebugMode && debugEnhanceBuildTimelineArguments) {
+              debugTimelineArguments = newWidget.toDiagnosticsNode().toTimelineArguments();
+            }
+            return true;
+          }());
+          Timeline.startSync(
+            '${newWidget.runtimeType}',
+            arguments: debugTimelineArguments,
+          );
+        }
+        child.update(newWidget);
+        if (isTimelineTracked) {
+          Timeline.finishSync();
+        }
+        newChild = child;
+      } else {
+        // 14-3. 如果上述情況都不滿足，則重新建立 widget 和 element，並進行 mount
+        deactivateChild(child);
+        assert(child._parent == null);
+        newChild = inflateWidget(newWidget, newSlot);
+      }
+    } else {
+      newChild = inflateWidget(newWidget, newSlot);
+    }
+
+    return newChild;
+  }
+}
 </code></pre>
+
+<h4>InheritedWidget 自身更新</h4>
+
+當 InheritedWidget 自身進行更新時候，其更新流程是
+
+<ol>
+  <li>
+    (Step &nbsp;&nbsp;9) InheritedElemnt->rebuild()
+  </li>
+  <li>
+    (Step &nbsp;12) InheritedElemnt->performRebuild() <br>
+    呼叫 <code>ProxyElement.build</code>，因為更新流程從 InheritedWidget 自身開始，且傳遞的子 widget 不變，則 build 傳回值固定
+  </li>
+  <li>
+    (Step 14) InheritedElemnt->updateChild() <br>
+    因為 build 傳回值固定，因此觸發上面程式碼 14-1 的條件，即其子 Widget 不會更新 <br>
+    (如果傳遞更新節點比較高,導致傳遞進來的widget對象發生變化,則會像正常的widget一樣刷新)
+  </li>
+</ol>
+
+<b></b>
 
 
 
@@ -284,6 +413,57 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
     background-color: #ad6c79;
     color: white;
   }
+
+  h2 {
+  /*     color: #006199; */
+  }
+
+  h2:before {
+  /*     color: #006199; */
+      content: '➤ ';
+      font-size: 24px;
+  }
+
+  h3 {
+      color: #3f51b5;
+      border-bottom: 1px solid #006199;
+  }
+
+  h3:before {
+  /*     color: #006199; */
+      content: '♞ ';
+      font-size: 24px;
+  }
+
+  h4 {
+      color: #2196F3;
+  }
+
+  h4:before {
+      color: orange;
+      content: ' ♔ ';
+      font-size: 24px;
+  }
+
+  hr {
+    border-top: 1px solid #dbdbdb;
+  }
+
+  html, body {
+    height: 100%;
+  }
+
+  html {
+    display: table;
+    margin: auto;
+  }
+
+  body {
+    max-width: 800px;
+    display: table-cell;
+    vertical-align: middle;
+  }
+
 </style>
 
 <script>
