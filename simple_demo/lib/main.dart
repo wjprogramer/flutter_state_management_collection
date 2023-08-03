@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:simple_demo/apps/bloc/app_1/bloc_app_1.dart';
 import 'package:simple_demo/apps/built_in/app_1/built_in_app_1.dart';
+import 'package:simple_demo/apps/mobx/app_1/mobx_app_1.dart';
 import 'package:simple_demo/apps/provider/app_1/provider_app_1.dart';
+import 'package:simple_demo/apps/riverpod/app_1/riverpod_app_1.dart';
 import 'package:simple_demo/share/global.dart';
 import 'package:simple_demo/share/presentation/theme.dart';
 
@@ -32,9 +34,11 @@ class _HomePage extends StatelessWidget {
     final Map<String, Widget Function()> _appOf = {
       // https://flutter.dev/docs/development/data-and-backend/state-mgmt/simple
       // 'app1': () => App1(),
-      'built-in.1': () => BuiltInApp1(),
-      'provider.1': () => ProviderApp1(),
       'bloc.1': () => BlocApp1(),
+      'built-in.1': () => BuiltInApp1(),
+      'mobx.1': () => MobxApp1(),
+      'provider.1': () => ProviderApp1(),
+      'riverpod.1': () => RiverpodApp1(),
     };
 
     return Scaffold(
