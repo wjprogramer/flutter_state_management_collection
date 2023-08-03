@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:simple_demo/share/core/utilities/utilities.dart';
+
+import '../features/counter/counter_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -11,6 +14,7 @@ class HomePage extends StatelessWidget {
       ),
       body: ListView(
         children: [
+          UI.navItem(context, 'Counter', () => CounterPage()),
         ],
       ),
     );
