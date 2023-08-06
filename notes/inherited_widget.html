@@ -432,15 +432,15 @@
         }
       </code></pre>
 
-      <p>結論:經過以上分析,得到第二第三個問題結論:</p>
+      <p>結論:經過以上分析,得到此問題結論:</p>
 
       <p>如果僅更新InheritedWidget自身的話,因為傳遞給InheritedWidget的子widget實例不變,所以在更新子widget的過程,創建的widget實例都相同,所以不刷新子widget, 同時因為從子節點開始更新的話不會調用的void update()  方法.所以也不會更新InheritedWidget被監聽依賴的Widget集合</p>
 
       <p>當InheritedWidget的父widget的調用進行刷新時,調用child.update() 方法,即是InheritedWidget會調用notifyClients 遍歷其被依賴的集合Element,調用其didChangeDependencies方法進行更新,而InheritedWidget本身因為build()方返回的widget實例是同一個,故其本身不刷新, 即是實現了局部刷新</p>
 
-      <h3>Q 問題四分析: 系統提供的InheritedNotifier是如何在不包裹父widget實現 InheritedWidget局部刷新機制的</h3>
+      <h3>Q 分析: 系統提供的InheritedNotifier是如何在不包裹父widget實現 InheritedWidget局部刷新機制的</h3>
 
-      <p>經過問題二三的分析,我們知道InheritedWidget 本身刷新時,因為沒有調用notifyClients方法,所以被依賴的對像沒有進行刷新,那如果我們手動調用 是不是就實現了 InheritedWidget的自動刷新機制呢 ,</p>
+      <p>經過前一個問題的分析,我們知道InheritedWidget 本身刷新時,因為沒有調用notifyClients方法,所以被依賴的對像沒有進行刷新,那如果我們手動調用 是不是就實現了 InheritedWidget的自動刷新機制呢 ,</p>
 
       <p>官方的InheritedNotifier就是通過手動調用notifyClients方法來實現更新的</p>
 
@@ -493,6 +493,21 @@
       </code></pre>
 
       <hr>
+
+      <h2>總結</h2>
+
+      <ol>
+        <li>子widget內部對應的Element持有一個 緩存從當前節點到根節點路徑上的所有InheritedElement的map引用: Map&lt;Type, InheritedElement&gt;? _inheritedWidgets  Element可以通過Type獲取相應的InheritedElement實例進而獲取對應的InheritedWidget</li>
+        <li>Element在調用dependOnInheritedWidgetOfExactType方法時,會將自己添加進InheritedElement的Map&lt;Element, Object?&gt; _dependents集合中,</li>
+        <li>InheritedElement刷新調用updateChild()方法時,因為build()返回的widget實例不變,所以導致不會調用 Elemnt-&gt;update()方法,既:不會更新子widget</li>
+        <li>當InheritedElement的父Elemnt 刷新執行child.update(newWidget),方法會調用InheritedElement-&gt;updated() =&gt; InheritedElement-&gt;notifyClients(),在notifyClients的方法中會遍歷_dependents 集合併調用Element-&gt;didChangeDependencies ()方法,而didChangeDependencies方法中會調用markNeedsBuild()方法,進而實現了InheritedWidget被依賴對象的刷新</li>
+      </ol>
+      
+      
+
+      
+      <p>綜上  InheritedWidget實現了 子widget可以獲取父InheritedWidget的實例,並實現了局部刷新</p>
+
 
 
 
