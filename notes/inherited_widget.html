@@ -7,468 +7,830 @@
 
   <link href="libs/highlight.js_9.12.0/default.min.css" rel="stylesheet" />
   <script src="libs/highlight.js_9.12.0/highlight.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tocbot/4.18.2/tocbot.min.js"></script>
 </head>
 <body>
-  
-<h1>InheritedWidget</h1>
 
-<p>
-  筆記當下版本: Flutter 3.7.11
-</p>
+  <div class="mw7 center dark-gray lh-copy">
+    <div id="main-content" class="content js-toc-content">
+      <div id="my-toc"></div>
 
-<h2>研究原理、原始碼分析</h2>
+      <h1>InheritedWidget</h1>
 
-<p>省略不重要的程式碼</p>
+      <p>
+        筆記當下版本: Flutter 3.7.11
+      </p>
 
-<hr>
+      <h2>研究原理、原始碼分析</h2>
 
-<h3>Q: 子 widget 如何取得從當前 widget 到根 widget 路徑中的所有 InheritedWidget 實體</h3>
+      <p>省略不重要的程式碼</p>
 
-<p>Flutter 建立畫面流程</p>
+      <hr>
 
-<ol>
-  <li>建立 Widget</li>
-  <li>呼叫 widget 的 createElement()，建立 Element</li>
-  <li>呼叫 Element 的 mount()</li>
-  <li>Element 的 mount() 中，會遍歷子 widget，建立對應 Element，並呼叫其 mount()，完成 ElementTree</li>
-</ol>
+      <h3>Q: 子 widget 如何取得從當前 widget 到根 widget 路徑中的所有 InheritedWidget 實體</h3>
 
-<hr>
+      <p>Flutter 建立畫面流程</p>
 
-<span class="label class-label">C</span> <code>Element</code>
+      <ol>
+        <li>建立 Widget</li>
+        <li>呼叫 widget 的 createElement()，建立 Element</li>
+        <li>呼叫 Element 的 mount()</li>
+        <li>Element 的 mount() 中，會遍歷子 widget，建立對應 Element，並呼叫其 mount()，完成 ElementTree</li>
+      </ol>
 
-<pre><code class="dart">PersistentHashMap&lt;Type, InheritedElement&gt;? _inheritedWidgets;
+      <hr>
 
-@mustCallSuper
-void mount(Element? parent, Object? newSlot) {
-  // ...
-  _updateInheritance();
-  // ...
-}
+      <span class="label class-label">C</span> <code>Element</code>
 
-void _updateInheritance() {
-  // POINT: 如果沒有覆寫 _updateInheritance，一般情況下的 Element 會和 parent 共用同一個 _inheritedWidgets
-  _inheritedWidgets = _parent?._inheritedWidgets;
-}
-</code></pre>
+      <pre><code class="dart">PersistentHashMap&lt;Type, InheritedElement&gt;? _inheritedWidgets;
 
-<p>_updateInheritance 只有引用並覆值，並沒有建立</p>
-
-<p>Element 體系中，有覆寫 <code>_updateInheritance</code> 和建立 <code>_inheritedWidgets</code> 的只有 <code>InheritedElement</code></p>
-
-<span class="label class-label">C</span> <code>InheritedWidget</code>
-
-<pre><code class="dart">@override
-void _updateInheritance() {
-  final PersistentHashMap&lt;Type, InheritedElement&gt; incomingWidgets =
-      _parent?._inheritedWidgets ?? const PersistentHashMap&lt;Type, InheritedElement&gt;.empty();
-  _inheritedWidgets = incomingWidgets.put(widget.runtimeType, this);
-}
-</code></pre>
-
-每個 InheritedElement 會將本身也加入到 <code>_inheritedWidgets</code>
-
-<p>
-  <span class="conclusion">
-    結論: 所有 InheritedElement 的子 Element 共享同一個 <code>PersistentHashMap&lt;Type, InheritedElement&gt;?</code> 物件，並且每一個子 Element 都有引用
-  </span>
-</p>
-
-<hr>
-
-<p>子 widget 取得 InheritedWidget 的例子:</p>
-
-<pre><code class="dart">class DataInheritedWidget&lt;T&gt; extends InheritedWidget {
-  const DataInheritedWidget({
-    super.key,
-    required super.child,
-    required this.data,
-  });
-
-  final T data;
-
-  static T? of&lt;T extends Listenable&gt;(BuildContext context) {
-    return context
-        .dependOnInheritedWidgetOfExactType&lt;DataInheritedWidget&lt;T&gt;()
-        ?.listenable;
-  }
-
-  static T? ofData&lt;T extends Listenable&gt;(BuildContext context) {
-    return (context
-        .getElementForInheritedWidgetOfExactType&lt;DataInheritedWidget&lt;T&gt;()
-        ?.widget as DataInheritedWidget&lt;T&gt;?)
-        ?.listenable;
-  }
-
-}
-</code></pre>
-
-<p>
-  <code>.of</code> 和 <code>.ofData</code> 都是給子 Widget 呼叫的；因此 <code>context</code> 是子 Widget 實體中的 context，而 widget 中的 BuildContext 就是 <code>Element</code>
-</p>
-
-<p>
-  <span class="label class-label">C</span> <code>Element</code> 中，這兩個方法的原始碼
-</p>
-
-<pre><code>@override
-T? dependOnInheritedWidgetOfExactType&lt;T extends InheritedWidget&gt;({Object? aspect}) {
-  assert(_debugCheckStateIsActiveForAncestorLookup());
-  final InheritedElement? ancestor = _inheritedWidgets == null ? null : _inheritedWidgets![T];
-  if (ancestor != null) {
-    return dependOnInheritedElement(ancestor, aspect: aspect) as T;
-  }
-  _hadUnsatisfiedDependencies = true;
-  return null;
-}
-
-@override
-InheritedElement? getElementForInheritedWidgetOfExactType&lt;T extends InheritedWidget&gt;() {
-  assert(_debugCheckStateIsActiveForAncestorLookup());
-  final InheritedElement? ancestor = _inheritedWidgets == null ? null : _inheritedWidgets![T];
-  return ancestor;
-}</code></pre>
-
-<code>_inheritedWidgets</code> 就是前面分析過的
-
-<hr>
-
-<h3>Q: InheritedWidget 如何做到局部更新</h3>
-
-<ul>
-  <li><code>getElementForInheritedWidgetOfExactType</code>: 只為了獲得 InheritedWidget 資料、不監聽</li>
-  <li><code>dependOnInheritedWidgetOfExactType</code>: 獲得 InheritedWidget 資料並相依監聽，與前者差異多了一行 <code>dependOnInheritedElement</code></li>
-</ul>
-
-<span class="label class-label">C</span> <code>Element</code>
-
-<pre><code>@override
-InheritedWidget dependOnInheritedElement(InheritedElement ancestor, { Object? aspect }) {
-  assert(ancestor != null);
-  // 如果為 null 則初始化
-  _dependencies ??= HashSet&lt;InheritedElement&gt;();
-  // 儲存相依對象
-  _dependencies!.add(ancestor);
-  // 更新 InheritedElement 的被相依對象集合
-  ancestor.updateDependencies(this, aspect);
-  return ancestor.widget as InheritedWidget;
-}</code></pre>
-
-<p>呼叫 <code>dependOnInheritedWidgetOfExactType</code> 會找到對應的 <code>InheritedElement</code>，將其加入自己的相依集合，並將自己加入到 <code>InheritedElement</code> 被相依集合（雙向綁定，父子可以互查），因此當 <code>InheritedElement</code>　要更新的時候可以定位到所有子 Widget</p>
-
-<hr>
-
-<p>先理解 widget 的更新機制</p>
-
-<pre><code class="dart">@optionalTypeArgs
-abstract class State&lt;T extends StatefulWidget&gt; with Diagnosticable {
-  @protected
-  void setState(VoidCallback fn) {
-    // ...
-    _element!.markNeedsBuild(); // Step 1
-  }
-}
-
-abstract class Element extends DiagnosticableTree implements BuildContext {
-  void markNeedsBuild() {
-    // ...
-    _dirty = true; // Step 2
-    owner!.scheduleBuildFor(this); // Step 3
-  }
-}
-
-class BuildOwner {
-  void scheduleBuildFor(Element element) {
-    // ...
-    _dirtyElements.add(element); // Step 4. 將需要更新的 Element 新增至 _dirtyElements
-    // ...
-  }
-}
-
-// ----------------------------------------------------------
-
-mixin WidgetsBinding on BindingBase /* 省略其他 Binding */ {
-  // Step 5. 當下一幀到來時，「系統」 會呼叫 drawFrame
-  @override
-  void drawFrame() {
-    // ...
-    buildOwner!.buildScope(renderViewElement!); // Step 6. 
-    // ...
-  }
-}
-
-class BuildOwner {
-  // Step 7. 省略很多程式碼
-  @pragma('vm:notify-debugger-on-exception')
-  void buildScope(Element context, [ VoidCallback? callback ]) {
-    int dirtyCount = _dirtyElements.length;
-    int index = 0;
-    while (index &lt; dirtyCount) {
-      final Element element = _dirtyElements[index];
-      element.rebuild(); // Step 8. 對 _dirtyElements 其中每一個元素 rebuild
-    }
-  }
-}
-
-abstract class Element extends DiagnosticableTree implements BuildContext {
-  // Step 9. 整個 Flutter 沒有任何子類別覆寫
-  @pragma('vm:prefer-inline')
-  void rebuild({bool force = false}) {
-    // ...
-    performRebuild();
-    // ...
-  }
-
-  // 不同 Element，實作會有落差
-  @protected
-  @mustCallSuper
-  void performRebuild() {
-    _dirty = false;
-  }
-}
-
-// Step 10
-// InheritedWidget 對應 InheritedElement
-class InheritedElement extends ProxyElement {
-}
-
-// Step 11
-abstract class ProxyElement extends ComponentElement {
-}
-
-// Step 12
-abstract class ComponentElement extends Element {
-  // InheritedElement -> ProxyElement -> ComponentElement 的繼承鏈中
-  // 只有 ComponentElement 覆寫 performRebuild
-  // 只列出關鍵程式碼
-  @override
-  @pragma('vm:notify-debugger-on-exception')
-  void performRebuild() {
-    Widget? built;
-    try {
-      built = build(); // 建立 Widget
-    } catch (e) {
-      // ...
-    } finally {
-      super.performRebuild(); // clears the "dirty" flag
-    }
-
-    try {
-      // 根據新建立的 Widget 更新 Element? _child
-      _child = updateChild(_child, built, slot);
-    } catch (e) {
-      _child = updateChild(null, built, slot);
-    }
-
-  }
-}
-
-// Step 13
-abstract class ProxyElement extends ComponentElement {
-  // 子類別 InheritedElement 沒有覆寫 build
-  @override
-  Widget build() => (widget as ProxyWidget).child; // 如果 child widget 實體不變，回傳對象永遠相同
-}
-
-// Step 14 (Step 12 中的 updateChild)
-// updateChild 在 InheritedElement 的繼承鏈中都沒覆寫
-abstract class Element extends DiagnosticableTree implements BuildContext {
-  @protected
-  @pragma('vm:prefer-inline')
-  Element? updateChild(Element? child, Widget? newWidget, Object? newSlot) {
-    if (newWidget == null) {
-      if (child != null) {
-        deactivateChild(child);
+      @mustCallSuper
+      void mount(Element? parent, Object? newSlot) {
+        // ...
+        _updateInheritance();
+        // ...
       }
-      return null;
-    }
 
-    final Element newChild;
-    if (child != null) {
-      // 在更新時，child 不為空，所以會來這 
-      bool hasSameSuperclass = true;
-      // ...
-      if (hasSameSuperclass && child.widget == newWidget) {
-        // 14-1 注意此處，如果新建的子 widget 和之前持有的子 Element 的 widget 相同就不更新
-        if (child.slot != newSlot) {
-          updateSlotForChild(child, newSlot);
+      void _updateInheritance() {
+        // POINT: 如果沒有覆寫 _updateInheritance，一般情況下的 Element 會和 parent 共用同一個 _inheritedWidgets
+        _inheritedWidgets = _parent?._inheritedWidgets;
+      }
+      </code></pre>
+
+      <p>_updateInheritance 只有引用並覆值，並沒有建立</p>
+
+      <p>Element 體系中，有覆寫 <code>_updateInheritance</code> 和建立 <code>_inheritedWidgets</code> 的只有 <code>InheritedElement</code></p>
+
+      <span class="label class-label">C</span> <code>InheritedWidget</code>
+
+      <pre><code class="dart">@override
+      void _updateInheritance() {
+        final PersistentHashMap&lt;Type, InheritedElement&gt; incomingWidgets =
+            _parent?._inheritedWidgets ?? const PersistentHashMap&lt;Type, InheritedElement&gt;.empty();
+        _inheritedWidgets = incomingWidgets.put(widget.runtimeType, this);
+      }
+      </code></pre>
+
+      每個 InheritedElement 會將本身也加入到 <code>_inheritedWidgets</code>
+
+      <p>
+        <span class="conclusion">
+          結論: 所有 InheritedElement 的子 Element 共享同一個 <code>PersistentHashMap&lt;Type, InheritedElement&gt;?</code> 物件，並且每一個子 Element 都有引用
+        </span>
+      </p>
+
+      <hr>
+
+      <p>子 widget 取得 InheritedWidget 的例子:</p>
+
+      <pre><code class="dart">class DataInheritedWidget&lt;T&gt; extends InheritedWidget {
+        const DataInheritedWidget({
+          super.key,
+          required super.child,
+          required this.data,
+        });
+
+        final T data;
+
+        static T? of&lt;T extends Listenable&gt;(BuildContext context) {
+          return context
+              .dependOnInheritedWidgetOfExactType&lt;DataInheritedWidget&lt;T&gt;()
+              ?.listenable;
         }
-        newChild = child;
-      } else if (hasSameSuperclass && Widget.canUpdate(child.widget, newWidget)) {
-        // 14-2. 如果兩個 widget 的 runtimeType 和 key 不同，則進行更新
-        if (child.slot != newSlot) {
-          updateSlotForChild(child, newSlot);
+
+        static T? ofData&lt;T extends Listenable&gt;(BuildContext context) {
+          return (context
+              .getElementForInheritedWidgetOfExactType&lt;DataInheritedWidget&lt;T&gt;()
+              ?.widget as DataInheritedWidget&lt;T&gt;?)
+              ?.listenable;
         }
-        final bool isTimelineTracked = !kReleaseMode && _isProfileBuildsEnabledFor(newWidget);
-        if (isTimelineTracked) {
-          Map&lt;String, String&gt;? debugTimelineArguments;
-          assert(() {
-            if (kDebugMode && debugEnhanceBuildTimelineArguments) {
-              debugTimelineArguments = newWidget.toDiagnosticsNode().toTimelineArguments();
+
+      }
+      </code></pre>
+
+      <p>
+        <code>.of</code> 和 <code>.ofData</code> 都是給子 Widget 呼叫的；因此 <code>context</code> 是子 Widget 實體中的 context，而 widget 中的 BuildContext 就是 <code>Element</code>
+      </p>
+
+      <p>
+        <span class="label class-label">C</span> <code>Element</code> 中，這兩個方法的原始碼
+      </p>
+
+      <pre><code>@override
+      T? dependOnInheritedWidgetOfExactType&lt;T extends InheritedWidget&gt;({Object? aspect}) {
+        assert(_debugCheckStateIsActiveForAncestorLookup());
+        final InheritedElement? ancestor = _inheritedWidgets == null ? null : _inheritedWidgets![T];
+        if (ancestor != null) {
+          return dependOnInheritedElement(ancestor, aspect: aspect) as T;
+        }
+        _hadUnsatisfiedDependencies = true;
+        return null;
+      }
+
+      @override
+      InheritedElement? getElementForInheritedWidgetOfExactType&lt;T extends InheritedWidget&gt;() {
+        assert(_debugCheckStateIsActiveForAncestorLookup());
+        final InheritedElement? ancestor = _inheritedWidgets == null ? null : _inheritedWidgets![T];
+        return ancestor;
+      }</code></pre>
+
+      <code>_inheritedWidgets</code> 就是前面分析過的
+
+      <hr>
+
+      <h3>Q: InheritedWidget 如何做到局部更新</h3>
+
+      <ul>
+        <li><code>getElementForInheritedWidgetOfExactType</code>: 只為了獲得 InheritedWidget 資料、不監聽</li>
+        <li><code>dependOnInheritedWidgetOfExactType</code>: 獲得 InheritedWidget 資料並相依監聽，與前者差異多了一行 <code>dependOnInheritedElement</code></li>
+      </ul>
+
+      <span class="label class-label">C</span> <code>Element</code>
+
+      <pre><code>@override
+      InheritedWidget dependOnInheritedElement(InheritedElement ancestor, { Object? aspect }) {
+        assert(ancestor != null);
+        // 如果為 null 則初始化
+        _dependencies ??= HashSet&lt;InheritedElement&gt;();
+        // 儲存相依對象
+        _dependencies!.add(ancestor);
+        // 更新 InheritedElement 的被相依對象集合
+        ancestor.updateDependencies(this, aspect);
+        return ancestor.widget as InheritedWidget;
+      }</code></pre>
+
+      <p>呼叫 <code>dependOnInheritedWidgetOfExactType</code> 會找到對應的 <code>InheritedElement</code>，將其加入自己的相依集合，並將自己加入到 <code>InheritedElement</code> 被相依集合（雙向綁定，父子可以互查），因此當 <code>InheritedElement</code>　要更新的時候可以定位到所有子 Widget</p>
+
+      <hr>
+
+      <p>先理解 widget 的更新機制</p>
+
+      <pre><code class="dart">@optionalTypeArgs
+      abstract class State&lt;T extends StatefulWidget&gt; with Diagnosticable {
+        @protected
+        void setState(VoidCallback fn) {
+          // ...
+          _element!.markNeedsBuild(); // Step 1
+        }
+      }
+
+      abstract class Element extends DiagnosticableTree implements BuildContext {
+        void markNeedsBuild() {
+          // ...
+          _dirty = true; // Step 2
+          owner!.scheduleBuildFor(this); // Step 3
+        }
+      }
+
+      class BuildOwner {
+        void scheduleBuildFor(Element element) {
+          // ...
+          _dirtyElements.add(element); // Step 4. 將需要更新的 Element 新增至 _dirtyElements
+          // ...
+        }
+      }
+
+      // ----------------------------------------------------------
+
+      mixin WidgetsBinding on BindingBase /* 省略其他 Binding */ {
+        // Step 5. 當下一幀到來時，「系統」 會呼叫 drawFrame
+        @override
+        void drawFrame() {
+          // ...
+          buildOwner!.buildScope(renderViewElement!); // Step 6. 
+          // ...
+        }
+      }
+
+      class BuildOwner {
+        // Step 7. 省略很多程式碼
+        @pragma('vm:notify-debugger-on-exception')
+        void buildScope(Element context, [ VoidCallback? callback ]) {
+          int dirtyCount = _dirtyElements.length;
+          int index = 0;
+          while (index &lt; dirtyCount) {
+            final Element element = _dirtyElements[index];
+            element.rebuild(); // Step 8. 對 _dirtyElements 其中每一個元素 rebuild
+          }
+        }
+      }
+
+      abstract class Element extends DiagnosticableTree implements BuildContext {
+        // Step 9. 整個 Flutter 沒有任何子類別覆寫
+        @pragma('vm:prefer-inline')
+        void rebuild({bool force = false}) {
+          // ...
+          performRebuild();
+          // ...
+        }
+
+        // 不同 Element，實作會有落差
+        @protected
+        @mustCallSuper
+        void performRebuild() {
+          _dirty = false;
+        }
+      }
+
+      // Step 10
+      // InheritedWidget 對應 InheritedElement
+      class InheritedElement extends ProxyElement {
+      }
+
+      // Step 11
+      abstract class ProxyElement extends ComponentElement {
+      }
+
+      // Step 12
+      abstract class ComponentElement extends Element {
+        // InheritedElement -> ProxyElement -> ComponentElement 的繼承鏈中
+        // 只有 ComponentElement 覆寫 performRebuild
+        // 只列出關鍵程式碼
+        @override
+        @pragma('vm:notify-debugger-on-exception')
+        void performRebuild() {
+          Widget? built;
+          try {
+            built = build(); // 建立 Widget
+          } catch (e) {
+            // ...
+          } finally {
+            super.performRebuild(); // clears the "dirty" flag
+          }
+
+          try {
+            // 根據新建立的 Widget 更新 Element? _child
+            _child = updateChild(_child, built, slot);
+          } catch (e) {
+            _child = updateChild(null, built, slot);
+          }
+
+        }
+      }
+
+      // Step 13
+      abstract class ProxyElement extends ComponentElement {
+        // 子類別 InheritedElement 沒有覆寫 build
+        @override
+        Widget build() => (widget as ProxyWidget).child; // 如果 child widget 實體不變，回傳對象永遠相同
+      }
+
+      // Step 14 (Step 12 中的 updateChild)
+      // updateChild 在 InheritedElement 的繼承鏈中都沒覆寫
+      abstract class Element extends DiagnosticableTree implements BuildContext {
+        @protected
+        @pragma('vm:prefer-inline')
+        Element? updateChild(Element? child, Widget? newWidget, Object? newSlot) {
+          if (newWidget == null) {
+            if (child != null) {
+              deactivateChild(child);
             }
-            return true;
-          }());
-          Timeline.startSync(
-            '${newWidget.runtimeType}',
-            arguments: debugTimelineArguments,
-          );
+            return null;
+          }
+
+          final Element newChild;
+          if (child != null) {
+            // 在更新時，child 不為空，所以會來這 
+            bool hasSameSuperclass = true;
+            // ...
+            if (hasSameSuperclass && child.widget == newWidget) {
+              // 14-1 注意此處，如果新建的子 widget 和之前持有的子 Element 的 widget 相同就不更新
+              if (child.slot != newSlot) {
+                updateSlotForChild(child, newSlot);
+              }
+              newChild = child;
+            } else if (hasSameSuperclass && Widget.canUpdate(child.widget, newWidget)) {
+              // 14-2. 如果兩個 widget 的 runtimeType 和 key 不同，則進行更新
+              if (child.slot != newSlot) {
+                updateSlotForChild(child, newSlot);
+              }
+              final bool isTimelineTracked = !kReleaseMode && _isProfileBuildsEnabledFor(newWidget);
+              if (isTimelineTracked) {
+                Map&lt;String, String&gt;? debugTimelineArguments;
+                assert(() {
+                  if (kDebugMode && debugEnhanceBuildTimelineArguments) {
+                    debugTimelineArguments = newWidget.toDiagnosticsNode().toTimelineArguments();
+                  }
+                  return true;
+                }());
+                Timeline.startSync(
+                  '${newWidget.runtimeType}',
+                  arguments: debugTimelineArguments,
+                );
+              }
+              child.update(newWidget);
+              if (isTimelineTracked) {
+                Timeline.finishSync();
+              }
+              newChild = child;
+            } else {
+              // 14-3. 如果上述情況都不滿足，則重新建立 widget 和 element，並進行 mount
+              deactivateChild(child);
+              assert(child._parent == null);
+              newChild = inflateWidget(newWidget, newSlot);
+            }
+          } else {
+            newChild = inflateWidget(newWidget, newSlot);
+          }
+
+          return newChild;
         }
-        child.update(newWidget);
-        if (isTimelineTracked) {
-          Timeline.finishSync();
-        }
-        newChild = child;
-      } else {
-        // 14-3. 如果上述情況都不滿足，則重新建立 widget 和 element，並進行 mount
-        deactivateChild(child);
-        assert(child._parent == null);
-        newChild = inflateWidget(newWidget, newSlot);
       }
-    } else {
-      newChild = inflateWidget(newWidget, newSlot);
+      </code></pre>
+
+      <h4>InheritedWidget 自身更新</h4>
+
+      當 InheritedWidget 自身進行更新時候，其更新流程是
+
+      <ol>
+        <li>
+          (Step &nbsp;&nbsp;9) InheritedElemnt->rebuild()
+        </li>
+        <li>
+          (Step &nbsp;12) InheritedElemnt->performRebuild() <br>
+          呼叫 <code>ProxyElement.build</code>，因為更新流程從 InheritedWidget 自身開始，且傳遞的子 widget 不變，則 build 傳回值固定
+        </li>
+        <li>
+          (Step 14) InheritedElemnt->updateChild() <br>
+          因為 build 傳回值固定，因此觸發上面程式碼 14-1 的條件，即其子 Widget 不會更新 <br>
+          (如果傳遞更新節點比較高,導致傳遞進來的widget對象發生變化,則會像正常的widget一樣刷新)
+        </li>
+      </ol>
+
+      <b>上述,我們得到一個結論,如果僅調用InheritedElement的更新方法,進行更新時,其內部會因為返回的widget實例相同,而不更新子widget</b>
+
+      <p>那麼當我們在InheritedWidget外部包裝一個(<b>非ProxyWidget類型</b>)父widget,並調用其內部的setState方法時, 因為build() 返回的widget實例,是新創建的,所以和當前Element的widget不同,所以會走 14-2 處, 調用子Element的update(covariant Widget newWidget) 方法</p>
+
+      <p>在InheritedElement的繼承鏈中ProxyElement 重寫了該方法</p>
+
+      <pre><code class="dart">  @override
+        void update(ProxyWidget newWidget) {
+          final ProxyWidget oldWidget = widget as ProxyWidget;
+          assert(widget != newWidget);
+          super.update(newWidget);
+          assert(widget == newWidget);
+          // ProxyElement-> updated()
+          updated(oldWidget);
+          //調用父類Element的rebuild方法=> Element->performRebuild()=>ComponentElement-> performRebuild()=>回到上述我們分析的InheritedElement的更新流程
+          rebuild(force: true);
+        }
+      </code></pre>
+
+      <p>所以當InheritedWidget的父widget 調用其子Element(即是InheritedElement)的update方法最終調用了ProxyElement-> updated()方法</p>
+
+      <p>ProxyElement-> updated()方法詳情</p>
+
+      <pre><code class="dart">  @protected
+        void updated(covariant ProxyWidget oldWidget) {
+          notifyClients(oldWidget);
+        }
+
+        @protected
+        void notifyClients(covariant ProxyWidget oldWidget);
+      </code></pre>
+
+      <p>InheritedElement分別重寫了這兩個方法</p>
+
+      <pre><code class="dart">  void updated(InheritedWidget oldWidget) {
+          if ((widget as InheritedWidget).updateShouldNotify(oldWidget)) {
+            super.updated(oldWidget);
+          }
+        }
+
+        @override
+        void notifyClients(InheritedWidget oldWidget) {
+          for (final Element dependent in _dependents.keys) {
+            // ...
+            notifyDependent(oldWidget, dependent);
+          }
+        }
+
+        @protected
+        void notifyDependent(covariant InheritedWidget oldWidget, Element dependent) {
+          dependent.didChangeDependencies();
+        }
+      </code></pre>
+
+      可以看到
+
+      <ol>
+        <li>InheritedElement->updated()=></li>
+        <li>InheritedElement->notifyClients()=></li>
+        <li>InheritedElement->notifyDependent()=></li>
+        <li>Element-> didChangeDependencies</li>
+      </ol>
+
+      <p>我們在前面分析問題一的時候,當調用 dependOnInheritedElement方法時,會將當前的Element填充進InheritedWidget 的dependents集合中,所以InheritedWidget再notifyClients方法中遍歷其被依賴的集合併調用其didChangeDependencies方法</p>
+
+      <p>而Element的didChangeDependencies方法 會調用markNeedsBuild方法 更新自己</p>
+
+      <pre><code class="dart">  @mustCallSuper
+        void didChangeDependencies() {
+          markNeedsBuild();
+        }
+      </code></pre>
+
+      <p>結論:經過以上分析,得到第二第三個問題結論:</p>
+
+      <p>如果僅更新InheritedWidget自身的話,因為傳遞給InheritedWidget的子widget實例不變,所以在更新子widget的過程,創建的widget實例都相同,所以不刷新子widget, 同時因為從子節點開始更新的話不會調用的void update()  方法.所以也不會更新InheritedWidget被監聽依賴的Widget集合</p>
+
+      <p>當InheritedWidget的父widget的調用進行刷新時,調用child.update() 方法,即是InheritedWidget會調用notifyClients 遍歷其被依賴的集合Element,調用其didChangeDependencies方法進行更新,而InheritedWidget本身因為build()方返回的widget實例是同一個,故其本身不刷新, 即是實現了局部刷新</p>
+
+      <h3>Q 問題四分析: 系統提供的InheritedNotifier是如何在不包裹父widget實現 InheritedWidget局部刷新機制的</h3>
+
+      <p>經過問題二三的分析,我們知道InheritedWidget 本身刷新時,因為沒有調用notifyClients方法,所以被依賴的對像沒有進行刷新,那如果我們手動調用 是不是就實現了 InheritedWidget的自動刷新機制呢 ,</p>
+
+      <p>官方的InheritedNotifier就是通過手動調用notifyClients方法來實現更新的</p>
+
+      <p>InheritedNotifierElement 手動調用notifyClients方法</p>
+
+      <pre><code class="dart">class _InheritedNotifierElement<T extends Listenable> extends InheritedElement {
+        _InheritedNotifierElement(InheritedNotifier<T> widget) : super(widget) {
+          widget.notifier?.addListener(_handleUpdate);
+        }
+
+        bool _dirty = false;
+
+        @override
+        void update(InheritedNotifier<T> newWidget) {
+          final T? oldNotifier = (widget as InheritedNotifier<T>).notifier;
+          final T? newNotifier = newWidget.notifier;
+          if (oldNotifier != newNotifier) {
+            oldNotifier?.removeListener(_handleUpdate);
+            newNotifier?.addListener(_handleUpdate);
+          }
+          super.update(newWidget);
+        }
+
+        @override
+        Widget build() {
+          // 手動調用
+          if (_dirty) {
+            notifyClients(widget as InheritedNotifier<T>);
+          }
+          return super.build();
+        }
+
+        void _handleUpdate() {
+          _dirty = true;
+          markNeedsBuild();
+        }
+
+        @override
+        void notifyClients(InheritedNotifier<T> oldWidget) {
+          super.notifyClients(oldWidget);
+          _dirty = false;
+        }
+
+        @override
+        void unmount() {
+          (widget as InheritedNotifier<T>).notifier?.removeListener(_handleUpdate);
+          super.unmount();
+        }
+      }
+      </code></pre>
+
+      <hr>
+
+
+
+
+      <!-- <ul>
+        <li><span class="label class-label">C</span> <code>InheritedWidget</code></li>
+        <ul>
+          <li><span class="label method-label">M</span> <code>InheritedElement createElement() => InheritedElement(this);</code></li>
+          <li><span class="label method-label">M</span> <code>bool updateShouldNotify(covariant InheritedWidget oldWidget)</code></li>
+        </ul>
+      </ul>
+
+      <hr> -->
+
+      <h2>參考</h2>
+
+      <ul>
+        <li><a href="https://juejin.cn/post/7077559190813671460#heading-4">1</a></li>
+      </ul>
+    </div>
+
+    <nav class="toc toc-right js-toc relative z-1 transition--300 absolute pa4 pt5 is-position-fixed">
+      <ol class="toc-list"></ol>
+    </nav>
+  </div>
+
+  
+
+  <style>
+    code {
+      color: crimson;
+      background-color: rgba(222,222,222,0.3);
+      padding-left: 4px;
+      padding-right: 4px;
     }
 
-    return newChild;
-  }
-}
-</code></pre>
+    .conclusion {
+      background-color: #fffb8a;
+      font-weight: bold;
+    }
 
-<h4>InheritedWidget 自身更新</h4>
+    .label {
+      display: inline-flex; /* or flex */
+      align-items: center; 
+      justify-content: center;
+      border-radius: 50%;
+      width: 15px;
+      height: 15px;
+      align-content: center;
+      font-size: 8px;
+      text-align: center;
+      -moz-border-radius: 7.5px;
+      -webkit-border-radius: 7.5px;
+      border-radius: 7.5px;
+    }
 
-當 InheritedWidget 自身進行更新時候，其更新流程是
+    .class-label {
+      background-color: #2b7d9f;
+      color: white;
+    }
 
-<ol>
-  <li>
-    (Step &nbsp;&nbsp;9) InheritedElemnt->rebuild()
-  </li>
-  <li>
-    (Step &nbsp;12) InheritedElemnt->performRebuild() <br>
-    呼叫 <code>ProxyElement.build</code>，因為更新流程從 InheritedWidget 自身開始，且傳遞的子 widget 不變，則 build 傳回值固定
-  </li>
-  <li>
-    (Step 14) InheritedElemnt->updateChild() <br>
-    因為 build 傳回值固定，因此觸發上面程式碼 14-1 的條件，即其子 Widget 不會更新 <br>
-    (如果傳遞更新節點比較高,導致傳遞進來的widget對象發生變化,則會像正常的widget一樣刷新)
-  </li>
-</ol>
+    .method-label {
+      background-color: #ad6c79;
+      color: white;
+    }
 
-<b></b>
+    h2 {
+    /*     color: #006199; */
+    }
+
+    h2:before {
+    /*     color: #006199; */
+        content: '➤ ';
+        font-size: 24px;
+    }
+
+    h3 {
+        color: #3f51b5;
+        border-bottom: 1px solid #006199;
+    }
+
+    h3:before {
+    /*     color: #006199; */
+        content: '♞ ';
+        font-size: 24px;
+    }
+
+    h4 {
+        color: #2196F3;
+    }
+
+    h4:before {
+        color: orange;
+        content: ' ♔ ';
+        font-size: 24px;
+    }
+
+    hr {
+      border-top: 1px solid #dbdbdb;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    html {
+      display: table;
+      margin: auto;
+    }
+
+    body {
+      /*max-width: 900px;*/
+      display: table-cell;
+      vertical-align: middle;
+      display: flex;
+      flex-direction: row;
+    }
+
+    .toc {
+      height: 100%;
+      width: 280px;
+      /*transform: translateX(0);*/
+    }
+
+    .is-position-fixed {
+      position: fixed !important;
+      top: 0;
+    }
+
+    .js-toc {
+      overflow-y: hidden;
+    }
+
+    #main-content {
+      /*padding: 2rem;*/
+      margin-right: 280px;
+      position: relative;
+    }
+
+    .toc > .toc-list {
+      overflow: hidden;
+      position: relative;
+    }
+
+    nav {
+      margin-top: 24px;
+    }
+
+    .toc-list {
+      margin: 0;
+      padding-left: 10px;
+    }
+
+    .toc > .toc-list li {
+      list-style: none;
+    }
+
+    a.toc-link {
+      text-decoration: none;
+    }
+
+    :root {
+      --content-width: 72rem;
+    }
 
 
+    .mw7 {
+      max-width: var(--content-width);
+    }
 
+    .toc.toc-right {
+      transform: translateX(0);
+      right: calc((100% - var(--content-width) - 4rem) / 2);
+    }
 
+    .is-collapsible {
+      max-height: 1000px;
+      overflow: hidden;
+      transition: all 300ms ease-in-out;
+    }
 
-<hr>
+    .is-collapsed {
+      max-height: 0;
+    }
 
-<ul>
-  <li><span class="label class-label">C</span> <code>InheritedWidget</code></li>
-  <ul>
-    <li><span class="label method-label">M</span> <code>InheritedElement createElement() => InheritedElement(this);</code></li>
-    <li><span class="label method-label">M</span> <code>bool updateShouldNotify(covariant InheritedWidget oldWidget)</code></li>
-  </ul>
-</ul>
+    .is-active-link::before {
+      background-color: #54bc4b !important;
+      height: 100%;
+    }
 
-<hr>
+    .toc-link::before {
+      background-color: #eee;
+      content: " ";
+      display: inline-block;
+      /*height: inherit;*/
+      left: 0;
+      margin-top: -1px;
+      position: absolute;
+      width: 2px;
+      height: 100vh;
+    }
 
-<h2>參考</h2>
+    a.toc-link {
+      color: rgb(51, 51, 51);
+    }
 
-<ul>
-  <li><a href="https://juejin.cn/post/7077559190813671460#heading-4">1</a></li>
-</ul>
+    .lh-copy {
+      line-height: 1.5;
+    }
 
-<style>
-  code {
-    color: crimson;
-    background-color: rgba(222,222,222,0.3);
-    padding-left: 4px;
-    padding-right: 4px;
-  }
+    .is-active-link {
+      font-weight: 700;
+    }
+    
+  </style>
 
-  .conclusion {
-    background-color: #fffb8a;
-    font-weight: bold;
-  }
+  <script>
+    hljs.initHighlightingOnLoad();
 
-  .label {
-    display: inline-flex; /* or flex */
-    align-items: center; 
-    justify-content: center;
-    border-radius: 50%;
-    width: 15px;
-    height: 15px;
-    align-content: center;
-    font-size: 8px;
-    text-align: center;
-    -moz-border-radius: 7.5px;
-    -webkit-border-radius: 7.5px;
-    border-radius: 7.5px;
-  }
+    // 選取所有的 h1 ~ h6 標題元素
+    const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
 
-  .class-label {
-    background-color: #2b7d9f;
-    color: white;
-  }
+    // 迴圈遍歷所有的標題元素，為每個元素添加 id 和編號
+    headings.forEach((heading, index) => {
+      // 創建編號，index 從 0 開始，所以要加 1
+      const number = index + 1;
+      
+      // 為標題元素添加 id，格式為 "section-{編號}"
+      heading.id = `section-${number}`;
+    });
 
-  .method-label {
-    background-color: #ad6c79;
-    color: white;
-  }
+    window.onload = () => {
+      console.log('init');
 
-  h2 {
-  /*     color: #006199; */
-  }
-
-  h2:before {
-  /*     color: #006199; */
-      content: '➤ ';
-      font-size: 24px;
-  }
-
-  h3 {
-      color: #3f51b5;
-      border-bottom: 1px solid #006199;
-  }
-
-  h3:before {
-  /*     color: #006199; */
-      content: '♞ ';
-      font-size: 24px;
-  }
-
-  h4 {
-      color: #2196F3;
-  }
-
-  h4:before {
-      color: orange;
-      content: ' ♔ ';
-      font-size: 24px;
-  }
-
-  hr {
-    border-top: 1px solid #dbdbdb;
-  }
-
-  html, body {
-    height: 100%;
-  }
-
-  html {
-    display: table;
-    margin: auto;
-  }
-
-  body {
-    max-width: 800px;
-    display: table-cell;
-    vertical-align: middle;
-  }
-
-</style>
-
-<script>
-  hljs.initHighlightingOnLoad();
-</script>
+      // 參考: https://tscanlin.github.io/tocbot/#license
+      tocbot.init({
+        // Where to render the table of contents.
+        tocSelector: '.js-toc',
+        // Where to grab the headings to build the table of contents.
+        contentSelector: '.js-toc-content',
+        // Which headings to grab inside of the contentSelector element.
+        headingSelector: 'h1, h2, h3, h4, h5, h6',
+        // Headings that match the ignoreSelector will be skipped.
+        ignoreSelector: '.js-toc-ignore',
+        // For headings inside relative or absolute positioned containers within content
+        hasInnerContainers: false,
+        // Main class to add to links.
+        linkClass: 'toc-link',
+        // Extra classes to add to links.
+        extraLinkClasses: '',
+        // Class to add to active links,
+        // the link corresponding to the top most heading on the page.
+        activeLinkClass: 'is-active-link',
+        // Main class to add to lists.
+        listClass: 'toc-list',
+        // Extra classes to add to lists.
+        extraListClasses: '',
+        // Class that gets added when a list should be collapsed.
+        isCollapsedClass: 'is-collapsed',
+        // Class that gets added when a list should be able
+        // to be collapsed but isn't necessarily collapsed.
+        collapsibleClass: 'is-collapsible',
+        // Class to add to list items.
+        listItemClass: 'toc-list-item',
+        // Class to add to active list items.
+        activeListItemClass: 'is-active-li',
+        // How many heading levels should not be collapsed.
+        // For example, number 6 will show everything since
+        // there are only 6 heading levels and number 0 will collapse them all.
+        // The sections that are hidden will open
+        // and close as you scroll to headings within them.
+        collapseDepth: 0,
+        // Smooth scrolling enabled.
+        scrollSmooth: true,
+        // Smooth scroll duration.
+        scrollSmoothDuration: 420,
+        // Smooth scroll offset.
+        scrollSmoothOffset: 0,
+        // Callback for scroll end.
+        scrollEndCallback: function (e) {},
+        // Headings offset between the headings and the top of the document (this is meant for minor adjustments).
+        headingsOffset: 1,
+        // Timeout between events firing to make sure it's
+        // not too rapid (for performance reasons).
+        throttleTimeout: 50,
+        // Element to add the positionFixedClass to.
+        positionFixedSelector: null,
+        // Fixed position class to add to make sidebar fixed after scrolling
+        // down past the fixedSidebarOffset.
+        positionFixedClass: 'is-position-fixed',
+        // fixedSidebarOffset can be any number but by default is set
+        // to auto which sets the fixedSidebarOffset to the sidebar
+        // element's offsetTop from the top of the document on init.
+        fixedSidebarOffset: 'auto',
+        // includeHtml can be set to true to include the HTML markup from the
+        // heading node instead of just including the textContent.
+        includeHtml: false,
+        // includeTitleTags automatically sets the html title tag of the link
+        // to match the title. This can be useful for SEO purposes or
+        // when truncating titles.
+        includeTitleTags: false,
+        // onclick function to apply to all links in toc. will be called with
+        // the event as the first parameter, and this can be used to stop,
+        // propagation, prevent default or perform action
+        onClick: function (e) {},
+        // orderedList can be set to false to generate unordered lists (ul)
+        // instead of ordered lists (ol)
+        orderedList: true,
+        // If there is a fixed article scroll container, set to calculate titles' offset
+        scrollContainer: null,
+        // prevent ToC DOM rendering if it's already rendered by an external system
+        skipRendering: false,
+        // Optional callback to change heading labels.
+        // For example it can be used to cut down and put ellipses on multiline headings you deem too long.
+        // Called each time a heading is parsed. Expects a string and returns the modified label to display.
+        // Additionally, the attribute `data-heading-label` may be used on a heading to specify
+        // a shorter string to be used in the TOC.
+        // function (string) => string
+        headingLabelCallback: false,
+        // ignore headings that are hidden in DOM
+        ignoreHiddenElements: false,
+        // Optional callback to modify properties of parsed headings.
+        // The heading element is passed in node parameter and information parsed by default parser is provided in obj parameter.
+        // Function has to return the same or modified obj.
+        // The heading will be excluded from TOC if nothing is returned.
+        // function (object, HTMLElement) => object | void
+        headingObjectCallback: null,
+        // Set the base path, useful if you use a `base` tag in `head`.
+        basePath: '',
+        // Only takes affect when `tocSelector` is scrolling,
+        // keep the toc scroll position in sync with the content.
+        disableTocScrollSync: false,
+        // Offset for the toc scroll (top) position when scrolling the page.
+        // Only effective if `disableTocScrollSync` is false.
+        tocScrollOffset: 0,
+      });
+      console.log('init end');
+    }
+  </script>
 
 </body>
 </html>
