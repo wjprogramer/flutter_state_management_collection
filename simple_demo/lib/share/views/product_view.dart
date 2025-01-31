@@ -53,7 +53,7 @@ class _ProductViewState extends State<ProductView> {
 }
 
 class _TestWidget1 extends StatefulWidget {
-  const _TestWidget1({Key? key}) : super(key: key);
+  const _TestWidget1({super.key});
 
   @override
   State<_TestWidget1> createState() => _TestWidget1State();

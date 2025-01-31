@@ -4,7 +4,7 @@ import 'package:simple_demo/share/presentation/theme.dart';
 import 'pages/home_page.dart';
 
 class MobxApp1 extends StatelessWidget {
-  const MobxApp1({Key? key}) : super(key: key);
+  const MobxApp1({super.key});
 
   @override
   Widget build(BuildContext context) {

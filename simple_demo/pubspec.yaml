@@ -41,6 +41,7 @@ dependencies:
   # Common
   equatable: ^2.0.5
   uuid: ^3.0.7
+  faker: ^2.1.0
 
   # Provider
   provider: ^6.0.5

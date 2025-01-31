@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:simple_demo/share/core/utilities/utilities.dart';
-
-import 'counter_page.dart';
+import 'package:flutter_common_package/utils/utils.dart';
+import 'package:simple_demo/apps/provider/app_2/pages/product_list_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -14,7 +13,12 @@ class HomePage extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          UI.navItem(context, 'Counter', () => CounterPage()),
+          TextButton(
+            onPressed: () {
+              push(context, ProductListPage());
+            },
+            child: Text('Go'),
+          ),
         ],
       ),
     );

@@ -6,7 +6,7 @@ import 'package:simple_demo/share/data/models/models.dart';
 import 'package:simple_demo/share/views/product_view.dart';
 
 class ProductPage extends StatefulWidget {
-  const ProductPage({Key? key}) : super(key: key);
+  const ProductPage({super.key});
 
   @override
   State<ProductPage> createState() => _ProductPageState();

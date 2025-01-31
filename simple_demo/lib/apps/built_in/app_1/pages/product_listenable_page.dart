@@ -10,7 +10,7 @@ import 'package:simple_demo/share/data/models/models.dart';
 import 'package:simple_demo/share/views/product_view.dart';
 
 class ProductListenablePage extends StatefulWidget {
-  const ProductListenablePage({Key? key}) : super(key: key);
+  const ProductListenablePage({super.key});
 
   @override
   State<ProductListenablePage> createState() => _ProductListenablePageState();
@@ -56,7 +56,7 @@ class _ProductListenablePageState extends State<ProductListenablePage> {
 }
 
 class _PriceLabel extends StatefulWidget {
-  const _PriceLabel({Key? key}) : super(key: key);
+  const _PriceLabel({super.key});
 
   @override
   State<_PriceLabel> createState() => _PriceLabelState();

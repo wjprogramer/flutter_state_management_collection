@@ -3,6 +3,7 @@ import 'package:simple_demo/apps/bloc/app_1/bloc_app_1.dart';
 import 'package:simple_demo/apps/built_in/app_1/built_in_app_1.dart';
 import 'package:simple_demo/apps/mobx/app_1/mobx_app_1.dart';
 import 'package:simple_demo/apps/provider/app_1/provider_app_1.dart';
+import 'package:simple_demo/apps/provider/app_2/provider_app_2.dart';
 import 'package:simple_demo/apps/riverpod/app_1/riverpod_app_1.dart';
 import 'package:simple_demo/share/global.dart';
 import 'package:simple_demo/share/presentation/theme.dart';
@@ -17,6 +18,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    DraggableScrollableSheet;
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'Flutter Demo',
@@ -27,7 +29,7 @@ class MyApp extends StatelessWidget {
 }
 
 class _HomePage extends StatelessWidget {
-  const _HomePage({Key? key}) : super(key: key);
+  const _HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +39,8 @@ class _HomePage extends StatelessWidget {
       'bloc.1': () => BlocApp1(),
       'built-in.1': () => BuiltInApp1(),
       'mobx.1': () => MobxApp1(),
-      'provider.1': () => ProviderApp1(),
+      'provider.1.basic': () => ProviderApp1(),
+      'provider.2.with_change_notifier': () => ProviderApp2(),
       'riverpod.1': () => RiverpodApp1(),
     };
 

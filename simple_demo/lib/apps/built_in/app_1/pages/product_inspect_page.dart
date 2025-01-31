@@ -7,7 +7,7 @@ import 'package:simple_demo/share/core/utils/utils.dart';
 import 'package:simple_demo/share/data/models/models.dart';
 
 class ProductInspectPage extends StatefulWidget {
-  const ProductInspectPage({Key? key}) : super(key: key);
+  const ProductInspectPage({super.key});
 
   @override
   State<ProductInspectPage> createState() => _ProductInspectPageState();
@@ -60,7 +60,7 @@ class _ProductInspectPageState extends State<ProductInspectPage> {
 }
 
 class _PriceLabel extends StatefulWidget {
-  const _PriceLabel({Key? key}) : super(key: key);
+  const _PriceLabel({super.key});
 
   @override
   State<_PriceLabel> createState() => _PriceLabelState();

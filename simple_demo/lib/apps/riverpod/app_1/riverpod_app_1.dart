@@ -7,7 +7,7 @@ import 'pages/home_page.dart';
 // Ref: https://github.com/rrousselGit/riverpod/tree/master/packages/flutter_riverpod/example
 
 class RiverpodApp1 extends StatelessWidget {
-  const RiverpodApp1({Key? key}) : super(key: key);
+  const RiverpodApp1({super.key});
 
   @override
   Widget build(BuildContext context) {
