@@ -3,8 +3,8 @@ import 'package:simple_demo/share/presentation/theme.dart';
 
 import 'pages/home_page.dart';
 
-class BlocApp1 extends StatelessWidget {
-  const BlocApp1({super.key});
+class BlocApp2 extends StatelessWidget {
+  const BlocApp2({super.key});
 
   @override
   Widget build(BuildContext context) {

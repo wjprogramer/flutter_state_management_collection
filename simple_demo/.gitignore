@@ -44,6 +44,7 @@ app.*.map.json
 /android/app/release
 
 # My
+.env
 
 # FVM Version Cache
 .fvm/

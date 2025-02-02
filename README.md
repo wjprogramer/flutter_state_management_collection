@@ -38,6 +38,9 @@ ViewModel (aka Controller ...)
 - 討論 A ViewModel 與 B ViewModel 連動，假設 A ViewModel 為 Product、B ViewModel
 - State 要有 event/action code，讓每個 action
 
+## Keywords
+
+- flutter bloc orchestra
 
 
 
