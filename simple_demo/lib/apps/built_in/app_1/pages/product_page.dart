@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:simple_demo/apps/built_in/app_1/view_models/view_models.dart';
 import 'package:simple_demo/share/data/models/models.dart';
 import 'package:simple_demo/share/views/product_view.dart';

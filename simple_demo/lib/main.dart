@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:simple_demo/apps/bloc/app_1/bloc_app_1.dart';
 import 'package:simple_demo/apps/built_in/app_1/built_in_app_1.dart';
+import 'package:simple_demo/apps/get_x/app_1/app_1/app_1.dart';
 import 'package:simple_demo/apps/mobx/app_1/mobx_app_1.dart';
 import 'package:simple_demo/apps/provider/app_1/provider_app_1.dart';
+import 'package:simple_demo/apps/provider/app_3/app_1/app.dart';
 import 'package:simple_demo/apps/riverpod/app_1/riverpod_app_1.dart';
 import 'package:simple_demo/share/global.dart';
 import 'package:simple_demo/share/presentation/theme.dart';
@@ -38,25 +41,54 @@ class _HomePage extends StatelessWidget {
       'built-in.1': () => BuiltInApp1(),
       'mobx.1': () => MobxApp1(),
       'provider.1': () => ProviderApp1(),
+      'provider.3': () => ProviderApp3(),
       'riverpod.1': () => RiverpodApp1(),
+      'get_x.1': () => GetXApp1(),
     };
+
+    ScrollBehavior().buildOverscrollIndicator;
+
+    if (kDebugMode) {
+      return Scaffold(
+        // GlowingOverscrollIndicator
+        // StretchingOverscrollIndicator
+        body: GlowingOverscrollIndicator(
+          axisDirection: AxisDirection.down,
+          color: Colors.red,
+          child: ListView(
+            children: List.generate(50, (index) => Text('Item $index')),
+          ),
+        ),
+      );
+    }
+
+    // return GlowingOverscrollIndicator(
+    //   axisDirection: details.direction,
+    //   color: _kDefaultGlowColor,
+    //   child: child,
+    // );
 
     return Scaffold(
       appBar: AppBar(
         title: Text('State Management'),
       ),
-      body: ListView(
-        children: [
-          ..._appOf.entries.map((entry) {
-            return ListTile(
-              title: Text(entry.key),
-              onTap: () {
-                // runApp(entry.value());
-                Navigator.push(context, MaterialPageRoute(builder: (_) => entry.value()));
-              },
-            );
-          }),
-        ],
+      body: ScrollConfiguration(
+        behavior: ScrollBehavior(
+          androidOverscrollIndicator: AndroidOverscrollIndicator.glow,
+        ),
+        child: ListView(
+          children: [
+            ...[..._appOf.entries, ..._appOf.entries].map((entry) {
+              return ListTile(
+                title: Text(entry.key),
+                onTap: () {
+                  // runApp(entry.value());
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => entry.value()));
+                },
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
